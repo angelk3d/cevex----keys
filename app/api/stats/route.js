@@ -1,26 +1,25 @@
 import { NextResponse } from 'next/server';
-
-const keysDB = new Map();
+import { getDB } from '@/lib/db';
 
 export async function GET() {
-  const now = new Date();
-  const allKeys = Array.from(keysDB.entries());
-  const activeKeys = allKeys.filter(([_, data]) => now < data.expiresAt);
-  
-  const stats = {
-    total: allKeys.length,
-    active: activeKeys.length,
-    byService: {
-      lootlabs: activeKeys.filter(([_, d]) => d.service === 'lootlabs').length,
-      linkvertise: activeKeys.filter(([_, d]) => d.service === 'linkvertise').length,
-      direct: activeKeys.filter(([_, d]) => d.service === 'direct').length
-    },
-    recentKeys: allKeys.slice(-5).map(([key, data]) => ({
-      key,
-      service: data.service,
-      expires: data.expiresAt.toISOString()
-    }))
-  };
-  
-  return NextResponse.json(stats);
+    try {
+        const db = await getDB();
+        
+        const totalKeys = await db.get('SELECT COUNT(*) as count FROM keys');
+        const activeKeys = await db.get('SELECT COUNT(*) as count FROM keys WHERE activated_at IS NOT NULL');
+        const sessions = await db.get('SELECT COUNT(*) as count FROM sessions WHERE expires_at > CURRENT_TIMESTAMP');
+        
+        return NextResponse.json({
+            success: true,
+            stats: {
+                totalKeys: totalKeys.count,
+                activeKeys: activeKeys.count,
+                activeSessions: sessions.count
+            }
+        });
+        
+    } catch (error) {
+        console.error('Stats error:', error);
+        return NextResponse.json({ success: false, message: "Server error" });
+    }
 }
