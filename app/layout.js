@@ -1,13 +1,14 @@
 export const metadata = {
-  title: 'Cevex.gg Key System',
-};
+  title: 'CEVEX Keys',
+  description: 'Key generation system',
+}
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, background: '#0a0a0a', color: 'white' }}>
+      <body style={{ margin: 0, padding: 0, fontFamily: 'Arial, sans-serif' }}>
         {children}
       </body>
     </html>
-  );
+  )
 }
