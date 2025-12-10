@@ -1,25 +1,56 @@
-import { NextResponse } from 'next/server';
-import { getDB } from '@/lib/db';
+// api/stats.js
+import clientPromise from '@/lib/db';
 
-export async function GET() {
-    try {
-        const db = await getDB();
-        
-        const totalKeys = await db.get('SELECT COUNT(*) as count FROM keys');
-        const activeKeys = await db.get('SELECT COUNT(*) as count FROM keys WHERE activated_at IS NOT NULL');
-        const sessions = await db.get('SELECT COUNT(*) as count FROM sessions WHERE expires_at > CURRENT_TIMESTAMP');
-        
-        return NextResponse.json({
-            success: true,
-            stats: {
-                totalKeys: totalKeys.count,
-                activeKeys: activeKeys.count,
-                activeSessions: sessions.count
-            }
-        });
-        
-    } catch (error) {
-        console.error('Stats error:', error);
-        return NextResponse.json({ success: false, message: "Server error" });
-    }
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Basic auth (in production use better auth)
+  const auth = req.headers.authorization;
+  if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const client = await clientPromise;
+    const db = client.db('cevex');
+    
+    const [keys, sessions, activations, generations] = await Promise.all([
+      db.collection('keys').countDocuments(),
+      db.collection('sessions').countDocuments(),
+      db.collection('activations').countDocuments(),
+      db.collection('generations').countDocuments()
+    ]);
+    
+    const usedKeys = await db.collection('keys').countDocuments({ used: true });
+    const activeSessions = await db.collection('sessions').countDocuments({ 
+      expires: { $gt: new Date() } 
+    });
+    
+    const recentActivations = await db.collection('activations')
+      .find()
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .toArray();
+    
+    res.json({
+      totalKeys: keys,
+      usedKeys: usedKeys,
+      activeSessions: activeSessions,
+      totalSessions: sessions,
+      totalActivations: activations,
+      totalGenerations: generations,
+      recentActivations: recentActivations.map(a => ({
+        key: a.key,
+        hwid: a.hwid,
+        timestamp: a.timestamp,
+        ip: a.ip
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Stats error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
 }
