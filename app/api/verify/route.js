@@ -32,6 +32,15 @@ export async function GET(request) {
     });
   }
   
+  // ЕСЛИ ключ уже был активирован другим HWID
+  if (keyData.hwid && keyData.hwid !== hwid) {
+    return NextResponse.json({
+      success: false,
+      message: 'Key already activated on another device'
+    });
+  }
+  
+  // Первая активация
   if (!keyData.hwid) {
     keyData.hwid = hwid;
     keyData.activated = true;
@@ -46,15 +55,17 @@ export async function GET(request) {
     });
   }
   
+  // Повторная активация на том же устройстве
   if (keyData.hwid === hwid) {
     return NextResponse.json({
       success: true,
       message: 'Access granted'
     });
-  } else {
-    return NextResponse.json({
-      success: false,
-      message: 'Key bound to another device'
-    });
   }
+  
+  // Не должно сюда дойти
+  return NextResponse.json({
+    success: false,
+    message: 'Unknown error'
+  });
 }
